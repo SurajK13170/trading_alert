@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | ForEach-Object { $cl = $_.CommandLine; if \\($cl\\) { \"PID $\\($_.ProcessId\\): $cl\" } } | Select-Object -First 20)",
+      "Read(//c/Users/suraj/Downloads/NEW_MODEL_BACKUP/BankNifty/ai_engine/**)",
+      "PowerShell(Stop-Process -Id 22772 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1; $still = Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -notmatch 'BankNifty' }; if \\($still\\) { Write-Output \"NIFTY still running:\"; $still | ForEach-Object { \"  PID $\\($_.ProcessId\\)\" } } else { Write-Output \"DONE — Nifty fully stopped \\(0 process\\). BankNifty untouched.\" }; $bnf = \\(Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -match 'BankNifty' }\\).Count; Write-Output \"BankNifty running: $bnf process \\(unchanged\\)\")",
+      "PowerShell(python -m py_compile \"C:\\\\Users\\\\suraj\\\\Downloads\\\\NEW_MODEL_BACKUP\\\\Nifty50\\\\ai_engine\\\\indian_quant_engine.py\")",
+      "PowerShell(if \\($?\\) { \"quant_engine SYNTAX OK\" })",
+      "PowerShell(python -m py_compile \"C:\\\\Users\\\\suraj\\\\Downloads\\\\NEW_MODEL_BACKUP\\\\Nifty50\\\\ai_engine\\\\indian_ai_engine.py\")",
+      "PowerShell(if \\($?\\) { \"ai_engine SYNTAX OK\" })"
+    ]
+  }
+}

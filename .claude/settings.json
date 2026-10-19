@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python -c \"from SmartApi import SmartConnect; m=[x for x in dir\\(SmartConnect\\) if 'oken' in x or 'andle' in x or 'ccess' in x]; print\\('relevant methods:', m\\)\")",
+      "PowerShell(python -m py_compile ai_engine\\\\tick_collector.py ai_engine\\\\indian_quant_engine.py)",
+      "PowerShell(if \\($?\\) { \"BOTH SYNTAX OK\" })",
+      "PowerShell(python -m py_compile ai_engine\\\\indian_execution_manager.py ai_engine\\\\slack_alerts.py)",
+      "PowerShell(python -m py_compile ai_engine\\\\indian_quant_engine.py)",
+      "PowerShell(if \\($?\\) { \"quant_engine SYNTAX OK\" })",
+      "PowerShell(if \\($?\\) { \"slack_alerts SYNTAX OK\" })",
+      "PowerShell(python -m py_compile ai_engine\\\\indian_ai_engine.py ai_engine\\\\indian_execution_manager.py)",
+      "PowerShell(\"cleaned _diag\")"
+    ]
+  }
+}

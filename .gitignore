@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Logs / artifacts
+logs/
+*.log
+retrain.log
+backtest_equity_curve.png
+backtest_trades.csv
+
+# Live trading data (private)
+live_feedback.csv
+
+# Model snapshots / training artifacts
+*.old_backup
+*.before5y
+retrain_*.log
+data_fetch_*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

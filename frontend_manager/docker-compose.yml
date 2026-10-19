@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  mysql_db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: quant_db
+    ports:
+      - "3306:3306"
+
+  redis_cache:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
