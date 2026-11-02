@@ -51,6 +51,11 @@ OPT_SUBSCRIBE_KEY = "opt_subscribe:Nifty50"   # execution manager writes/clears 
 TICK_TTL_SEC      = 30                          # ticks expire so stale data is obvious
 CANDLE_INTERVAL_SEC = 5 * 60
 CANDLE_TTL_SEC      = 60
+# Finished tick-built candles, published the moment a 5-min candle closes so the
+# signal engine can check for a B without waiting 1-3 min for Angel's history API.
+TICK_CANDLES_KEY    = "tick_candles:Nifty50"
+TICK_CANDLES_KEEP   = 3
+PARTIAL_GRACE_SEC   = 15   # first tick later than this after the candle start -> partial candle
 
 # redis-py 4.6 defaults to RESP2, which is compatible with local Redis 5.
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
@@ -62,8 +67,38 @@ _state = {
     "opt_symbol":  None,
     "connected":   False,
     "live_candle": None,
+    "last_finished_ts": 0,   # timestamp (ms) of the last candle published as finished
 }
 _lock = threading.Lock()
+
+
+def _publish_finished_candle(candle):
+    """Append a finished 5-min candle to tick_candles:Nifty50 (keeps the last few)."""
+    try:
+        raw = redis_client.get(TICK_CANDLES_KEY)
+        recent = [c for c in (json.loads(raw) if raw else []) if c["timestamp"] != candle["timestamp"]]
+        recent.append(candle)
+        redis_client.set(TICK_CANDLES_KEY, json.dumps(recent[-TICK_CANDLES_KEEP:]),
+                         ex=CANDLE_INTERVAL_SEC * 3)
+    except Exception as e:
+        print(f"[TICK] Could not publish finished candle: {e}")
+
+
+def _finish_candle_if_closed(now):
+    """
+    Publish the current candle once its 5-min window has passed. Called on every
+    tick and every second from the watcher thread, so a candle is finished on
+    time even when no new tick arrives (e.g. the 15:25 candle after the close).
+    """
+    with _lock:
+        candle = _state["live_candle"]
+        if (not candle
+                or candle["timestamp"] // 1000 + CANDLE_INTERVAL_SEC > now
+                or candle["timestamp"] <= _state["last_finished_ts"]):
+            return
+        _state["last_finished_ts"] = candle["timestamp"]
+        finished = dict(candle)
+    _publish_finished_candle(finished)
 
 
 # ── Angel login (REST) → jwt + feed token for the socket ─────────
@@ -101,6 +136,7 @@ def _option_watcher():
     Runs as a daemon thread for the life of one socket connection.
     """
     while _state["connected"]:
+        _finish_candle_if_closed(time.time())
         try:
             raw = redis_client.get(OPT_SUBSCRIBE_KEY)
             want_token = want_symbol = None
@@ -175,6 +211,7 @@ def on_data(wsapp, message):
             redis_client.set("tick:Nifty50",
                              json.dumps({"price": ltp, "ts": now}), ex=TICK_TTL_SEC)
             candle_start = int(now // CANDLE_INTERVAL_SEC) * CANDLE_INTERVAL_SEC
+            _finish_candle_if_closed(now)
             with _lock:
                 candle = _state["live_candle"]
                 if not candle or candle["timestamp"] // 1000 != candle_start:
@@ -184,6 +221,9 @@ def on_data(wsapp, message):
                         "high": ltp,
                         "low": ltp,
                         "close": ltp,
+                        # Started mid-candle (late start / reconnect): the open
+                        # and range are incomplete, so the signal engine skips it.
+                        "partial": now - candle_start > PARTIAL_GRACE_SEC,
                     }
                     _state["live_candle"] = candle
                 else:

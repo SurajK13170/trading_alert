@@ -179,10 +179,12 @@ def maybe_send_alert(signal_data: dict, *, allow_open_position=False):
         print("[TELEGRAM] Alert skipped: an open position is active.")
         return
 
-    # Dedupe by direction, not price.  Live spot prices move on every polling
-    # cycle, so including price here turned one BUY/SELL signal into many alerts.
+    # Dedupe by direction + B candle, not price.  Live spot prices move on every
+    # polling cycle, so including price turned one signal into many alerts; the
+    # candle timestamp gives each new B marker exactly one alert.
     price      = signal_data.get("entry_price", 0)
-    alert_key  = signal
+    candle_ts  = signal_data.get("candle_timestamp")
+    alert_key  = f"{signal}_{candle_ts}" if candle_ts else signal
     _refresh_config()
     if not BOT_TOKEN or not CHAT_IDS:
         return

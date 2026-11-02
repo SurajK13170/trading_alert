@@ -270,6 +270,37 @@ def _angel_fetch(interval, days_back, token=None, exchange="NSE"):
     return pd.DataFrame()
 
 
+def _fill_intraday_gaps(df):
+    """
+    Angel's 5-min history drops bars where the index does not tick -- every day
+    15:15 and 15:20 (closing session). TradingView keeps those bars, and the
+    LuxAlgo trendline moves one slope step per bar, so missing bars shift the
+    lines and B markers (e.g. a 13:00 SELL showing up at 12:20 instead).
+    Insert a flat candle at the previous close for each missing bar inside a day.
+    """
+    if df is None or df.empty:
+        return df
+    col = {c.lower(): c for c in df.columns}
+    parts = []
+    for _, day in df.groupby(df.index.date):
+        full = pd.date_range(day.index[0], day.index[-1], freq="5min")
+        if len(full) == len(day):
+            parts.append(day)
+            continue
+        day = day.reindex(full)
+        close = day[col["close"]].ffill()
+        missing = day[col["open"]].isna()
+        for name in ("open", "high", "low"):
+            day.loc[missing, col[name]] = close[missing]
+        day[col["close"]] = close
+        if "volume" in col:
+            day[col["volume"]] = day[col["volume"]].fillna(0)
+        parts.append(day)
+    filled = pd.concat(parts)
+    filled.index.name = df.index.name
+    return filled
+
+
 def main_engine(redis_key="Nifty50"):
     print("[START] Quant Engine v4.0 | Data source: Angel One only")
 
@@ -299,7 +330,7 @@ def main_engine(redis_key="Nifty50"):
                 now_t = time.time()
                 if (_daily_cache["5m"] is None
                         or now_t - _daily_cache["ts_5m"] >= ANGEL_5M_REFRESH_SEC):
-                    _daily_cache["5m"] = _angel_fetch("FIVE_MINUTE", 7)
+                    _daily_cache["5m"] = _fill_intraday_gaps(_angel_fetch("FIVE_MINUTE", 7))
                     _daily_cache["ts_5m"] = now_t
                 df_hourly_raw = _daily_cache["5m"]
                 if df_hourly_raw is None or df_hourly_raw.empty:
