@@ -63,17 +63,6 @@ def _has_open_position() -> bool:
         return False
 
 
-def _in_cooldown() -> bool:
-    """True during the post-trade cooldown — no trade can be taken, so don't alert."""
-    try:
-        raw = _redis.get("cooldown_until:Nifty50")
-        if not raw:
-            return False
-        return time.time() < float(raw)
-    except Exception:
-        return False
-
-
 def _claim_alert(alert_key: str) -> bool:
     """Atomically reserve an alert so separate processes cannot both post it."""
     try:
@@ -187,11 +176,12 @@ def maybe_send_alert(signal_data: dict, *, allow_open_position=False):
         return
     if not allow_open_position and _has_open_position():
         return
-    if not allow_open_position and _in_cooldown():
-        return   # 15-min post-trade cooldown — no trade will fire, so no alert
 
+    # Dedupe by direction + B candle when known (same as Telegram), so every
+    # new B gets exactly one alert; trade-entry alerts fall back to price.
     price     = signal_data.get("entry_price", 0)
-    alert_key = f"{signal}_{price:.0f}"
+    candle_ts = signal_data.get("candle_timestamp")
+    alert_key = f"{signal}_{candle_ts}" if candle_ts else f"{signal}_{price:.0f}"
     if alert_key == _last_alert_key:
         return
     if not _claim_alert(alert_key):

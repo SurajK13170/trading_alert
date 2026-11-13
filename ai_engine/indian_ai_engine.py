@@ -8,6 +8,7 @@ import redis
 from dotenv import load_dotenv
 
 from telegram_alerts import maybe_send_alert as maybe_send_telegram_alert, send_startup_message as send_telegram_startup_message
+from slack_alerts import maybe_send_alert as maybe_send_slack_alert, send_startup_message as send_slack_startup_message
 from trendline_breaks import indicator_data
 
 load_dotenv()
@@ -134,15 +135,20 @@ def generate_signal(redis_key="Nifty50"):
         }
         redis_client.set(f"signal:{redis_key}", json.dumps(payload), ex=120)
 
-        # One Telegram alert per B candle: the dedupe key includes the candle
-        # timestamp, so repeated loop iterations (and Angel's candle replacing
-        # the tick candle) never re-send, but every new B -- even two BUYs in a
-        # row -- is alerted. Slack remains confirmation-only in the execution manager.
+        # One Telegram + Slack alert per B candle: the dedupe key includes the
+        # candle timestamp, so repeated loop iterations (and Angel's candle
+        # replacing the tick candle) never re-send, but every new B -- even two
+        # BUYs in a row -- is alerted.
         for b_timestamp, direction in alert_events:
-            try:
-                maybe_send_telegram_alert({**payload, "signal": direction, "candle_timestamp": b_timestamp})
-            except Exception as error:
-                print(f"[TELEGRAM] Alert failed: {error}")
+            alert = {**payload, "signal": direction, "candle_timestamp": b_timestamp}
+            for channel, send_alert in (
+                ("TELEGRAM", maybe_send_telegram_alert),
+                ("SLACK", maybe_send_slack_alert),
+            ):
+                try:
+                    send_alert(alert)
+                except Exception as error:
+                    print(f"[{channel}] Alert failed: {error}")
 
         print(f"[{signal}] {reason}")
     except Exception as error:
@@ -151,6 +157,7 @@ def generate_signal(redis_key="Nifty50"):
 
 if __name__ == "__main__":
     send_telegram_startup_message()
+    send_slack_startup_message()
     print("[START] LuxAlgo Trendlines with Breaks signal engine")
     while True:
         generate_signal("Nifty50")

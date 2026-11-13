@@ -466,7 +466,9 @@ export default function App() {
   const [pendingApproval, setPendingApproval] = useState(false);
 
   const symbol = "Nifty50";
-  const API_BASE = "http://localhost:3000";
+  // Same-origin path, proxied to the backend by Vite (vite.config.js), so the
+  // dashboard also works when opened from another device / through ngrok.
+  const API_BASE = "/api";
 
   const fetchData = async () => {
     try {
